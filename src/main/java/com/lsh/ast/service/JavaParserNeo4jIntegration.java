@@ -21,7 +21,10 @@ import java.util.List;
 
 import static org.neo4j.driver.Values.parameters;
 
+
 public class JavaParserNeo4jIntegration {
+
+    private String kk;
 
 
     private static void processJavaFile(Path path, Session session) {
@@ -32,9 +35,15 @@ public class JavaParserNeo4jIntegration {
             StaticJavaParser.setConfiguration(config);
             CompilationUnit cu = StaticJavaParser.parse(new FileInputStream(path.toFile()));
 
+            String packageName = cu.getPackageDeclaration()
+                    .map(pd -> pd.getName().toString())
+                    .orElse("");
+
             for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
                 String className = clazz.getNameAsString();
-                session.run("MERGE (c:Class {name: $name})", parameters("name", className));
+                String fullClassName = packageName.isEmpty() ? className : packageName + "." + className;
+
+                session.run("MERGE (c:Class {name: $name})", parameters("name", fullClassName));
 
                 clazz.getFields().forEach(field -> {
                     for (VariableDeclarator var : field.getVariables()) {
@@ -46,7 +55,7 @@ public class JavaParserNeo4jIntegration {
                         """, parameters(
                                 "name", var.getNameAsString(),
                                 "type", var.getType().asString(),
-                                "className", className));
+                                "className", fullClassName));
                     }
                 });
 
@@ -58,7 +67,7 @@ public class JavaParserNeo4jIntegration {
                         WITH m
                         MATCH (c:Class {name: $className})
                         MERGE (c)-[:CLASS_HAS_METHOD]->(m)
-                    """, parameters("name", methodName, "className", className));
+                    """, parameters("name", methodName, "className", fullClassName));
                 }
 
                 for (MethodDeclaration method : methods) {
@@ -69,7 +78,7 @@ public class JavaParserNeo4jIntegration {
                             MATCH (caller:Method {name: $caller, class: $className})
                             MATCH (callee:Method {name: $callee})
                             MERGE (caller)-[:METHOD_CALLS_METHOD]->(callee)
-                        """, parameters("caller", caller, "callee", callee, "className", className));
+                        """, parameters("caller", caller, "callee", callee, "className", fullClassName));
                     });
                 }
             }
@@ -94,5 +103,7 @@ public class JavaParserNeo4jIntegration {
         }
 
         driver.close();
+        System.out.println("done.");
+
     }
 }

@@ -19,3 +19,11 @@ cd neo4j-community-5.19.0
 Open http://localhost:7474 in your web browser.
 
 默认密码neo4j
+
+## 删除
+
+```shell
+MATCH (n) 
+WHERE n:Class OR n:Field OR n:Method
+DETACH DELETE n
+```
